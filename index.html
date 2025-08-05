@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TAM Dashboard</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';">
     <style>
         * {
             margin: 0;
@@ -620,6 +621,22 @@
 
         <!-- Dashboard Tab -->
         <div id="dashboard-tab" class="tab-content active">
+        <div id="fileUploadSection" class="filters-section hidden">
+            <div class="card">
+                <div class="card__header">
+                    <h3>Load Your CSV Data</h3>
+                </div>
+                <div class="card__body">
+                    <div style="text-align: center; padding: 20px;">
+                        <p style="margin-bottom: 15px;">Select your data.csv file to load the dashboard:</p>
+                        <input type="file" id="csvFileInput" accept=".csv" style="margin-bottom: 15px;" />
+                        <div id="fileStatus" style="color: #667eea; font-weight: 600;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="mainDashboard">
             <section class="filters-section">
                 <div class="filters-grid">
                     <div class="card filter-card">
@@ -839,14 +856,8 @@
             console.log("Initializing app, attempting to load CSV...");
             showLoading();
             
-            // Try to load data.csv from the same directory
-            fetch('data.csv')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    return response.text();
-                })
+            // Try multiple approaches to load the CSV
+            loadCSVFile()
                 .then(csvText => {
                     console.log("CSV file loaded successfully");
                     const parsed = parseCSV(csvText);
@@ -866,8 +877,37 @@
                 .catch(error => {
                     console.error('Error loading CSV:', error);
                     hideLoading();
-                    showErrorMessage(`Failed to load data.csv: ${error.message}\n\nPlease ensure the file exists in the same directory as this HTML file.`);
+                    showErrorMessage(`Failed to load data.csv: ${error.message}\n\nTrouble loading CSV on GitHub Pages? Try:\n1. Make sure data.csv is in the same folder\n2. Check the file is named exactly 'data.csv'\n3. Verify the repository is public`);
                 });
+        }
+
+        // Multiple CSV loading strategies
+        async function loadCSVFile() {
+            const strategies = [
+                () => fetch('./data.csv'),
+                () => fetch('data.csv'),
+                () => fetch('./data.csv?v=' + Date.now()), // Cache busting
+                () => fetch('data.csv?v=' + Date.now()),
+            ];
+
+            for (let i = 0; i < strategies.length; i++) {
+                try {
+                    console.log(`Trying CSV loading strategy ${i + 1}...`);
+                    const response = await strategies[i]();
+                    
+                    if (response.ok) {
+                        const text = await response.text();
+                        console.log(`Strategy ${i + 1} succeeded`);
+                        return text;
+                    } else {
+                        console.log(`Strategy ${i + 1} failed: ${response.status} ${response.statusText}`);
+                    }
+                } catch (error) {
+                    console.log(`Strategy ${i + 1} error:`, error);
+                }
+            }
+            
+            throw new Error('All CSV loading strategies failed. Please check that data.csv exists and is accessible.');
         }
 
         function showErrorMessage(message) {
